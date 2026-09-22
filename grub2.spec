@@ -116,6 +116,11 @@ Patch2002:	grub2-i386-pc-no-pageflipping.patch
 Patch2003:	grub-2.16-00_header-bios-console.patch
 # Quiet remaining BIOS banners (loading dots, Welcome to GRUB!)
 Patch2004:	grub-2.16-quiet-bios-banner.patch
+# EFI: when the legacy initrd allocation cannot fit a large initrd below
+# initrd_addr_max (low RAM reported as boot-services memory), report an
+# explicit actionable error instead of the opaque relocator "out of memory".
+# The LoadFile2 path (default for modern kernels) is unaffected.
+Patch2005:	grub-2.16-legacy-initrd-diag.patch
 
 BuildRequires:	autoconf
 BuildRequires:	autoconf-archive

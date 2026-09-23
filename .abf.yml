@@ -1,7 +1,5 @@
 sources:
   DroidSansMono.ttf: 4d3d8054231ec4e9bfc14a46ad4d60c575fbfeec
-  gnulib-9f48fb992a3d7e96610c4ce8be969cff2d61a01b.tar.gz: 46a5f7c2304b2f995c5bccf00aec134fa6dcaf42
+  grub-2.16.tar.xz: b4d23f829f48ba342afe4ef246fefeeba0d498b1
   grub-extras-20231020.tar.xz: 1a6301909791b3806619e13b8977d7c7185506d9
-  grub-grub-2.16-rc1.tar.bz2: 61e5520ac2a70a9d5542b8f8388429cd0e451ec3
   grub_guide.tar.gz: f300e9f0c86512bb90f5e82fa65636fcb5d644a7
-  grub-po-20260820.tar.xz: 6050261dbec00e77856e84c4e515988b84d388f0

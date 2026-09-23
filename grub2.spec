@@ -15,10 +15,18 @@
 %define platform efi
 %endif
 
+# Empty: freedesktop release tarball (gnulib, catalogs and configure
+# already generated). ftp.gnu.org does not carry 2.16.
+# Set to rc1 to build the GitLab archive of tag grub-VERSION-rc1.
+# That archive is a raw git snapshot: no gnulib import, no .po files.
 %define snapshot %{nil}
-%define beta rc1
-# GitLab snapshot tarball does not include imported gnulib; bootstrap.conf pin.
+# bootstrap.conf pin. Used only for a git snapshot.
 %define gnulib_rev 9f48fb992a3d7e96610c4ce8be969cff2d61a01b
+%if "%{snapshot}" == ""
+%define grub_srcdir grub-%{version}
+%else
+%define grub_srcdir grub-grub-%{version}-%{snapshot}
+%endif
 
 Summary:	GNU GRUB is a Multiboot boot loader
 Name:		grub2
@@ -27,21 +35,19 @@ Name:		grub2
 ## and compare to grub2-2.02-unity-mkrescue-use-grub2-dir.patch
 ## do _NOT_ update without doing that .. we just go lucky until now.
 Version:	2.16
-Release:	%{?beta:0.%{beta}.}7
+%if "%{snapshot}" == ""
+Release:	1
+%else
+Release:	0.%{snapshot}.1
+%endif
 Group:		System/Kernel and hardware
 License:	GPLv3+
 Url:		https://www.gnu.org/software/grub/
-%if 0%{?beta:1}
-# Development moved to https://gitlab.freedesktop.org/gnu-grub/grub/
-Source0:	https://gitlab.freedesktop.org/gnu-grub/grub/-/archive/grub-%{version}-%{beta}/grub-grub-%{version}-%{beta}.tar.bz2
-%else
 %if "%{snapshot}" == ""
-Source0:	https://ftp.gnu.org/gnu/grub/grub-%{version}%{?beta:-%{beta}}.tar.xz
+Source0:	https://gitlab.freedesktop.org/api/v4/projects/gnu-grub%2Fgrub/packages/generic/source-assets/grub-%{version}/grub-%{version}.tar.xz
 %else
-# git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
-# git archive --format=tar --prefix grub-2.16-$(date +%Y%m%d)/ HEAD | xz -vf > grub-2.16-$(date +%Y%m%d).tar.xz
-Source0:	grub-%{version}-%{snapshot}.tar.xz
-%endif
+# GitLab archive of tag grub-VERSION-SNAPSHOT. Top directory is grub-grub-VERSION-SNAPSHOT.
+Source0:	https://gitlab.freedesktop.org/gnu-grub/grub/-/archive/grub-%{version}-%{snapshot}/grub-grub-%{version}-%{snapshot}.tar.bz2
 %endif
 Source1:	90_persistent
 Source2:	grub.default
@@ -59,11 +65,15 @@ Source12:	grub-extras-20231020.tar.xz
 Source13:	grub2-theme-test.sh
 # Upstream 2.16 ships util/grub.d/30_uefi-firmware.in
 Source14:	30-uefi_firmware
+%if "%{snapshot}" != ""
+# GitLab archive does not include imported gnulib.
 Source15:	https://github.com/coreutils/gnulib/archive/%{gnulib_rev}/gnulib-%{gnulib_rev}.tar.gz
-# GitLab snapshot has no .po files; TP cannot be rsync'd at build time
+# GitLab archive has no .po files; TP cannot be rsync'd at build time.
 # rsync -Lrtvz translationproject.org::tp/latest/grub/ grub-po
 # tar cJf grub-po-$(date +%Y%m%d).tar.xz grub-po
+# abb store that tarball when switching to a snapshot.
 Source16:	grub-po-20260820.tar.xz
+%endif
 Patch0:		grub2-locales.patch
 Patch1:		grub2-00_header.patch
 Patch2:		grub2-custom-color.patch
@@ -243,12 +253,15 @@ Documentation for GRUB.
 %endif
 
 %prep
-%autosetup -p1 -n grub-grub-%{version}-%{beta} -a12
+%autosetup -p1 -n %{grub_srcdir} -a12
+
+%if "%{snapshot}" != ""
 # Keep gnulib outside the source tree so autogen.sh does not add it to POTFILES
 tar -xf %{SOURCE15} -C ..
 
 # GitLab archive is a git snapshot: import gnulib and generate configure
 ./bootstrap --no-git --skip-po --gnulib-srcdir=../gnulib-%{gnulib_rev}
+%endif
 
 # VPATH builds run pot generation from $builddir/po
 sed -i -e 's|sed -f grub.d.sed|sed -f $(srcdir)/grub.d.sed|' po/Makefile.in.in
@@ -267,12 +280,14 @@ rm -rf grub-extras/lua
 export GRUB_CONTRIB=./grub-extras
 sed -i -e 's,-I m4,-I m4 --dont-fix,g' autogen.sh
 
-# GitLab snapshot has no catalogs; ship TP snapshot (ABF has no network)
+%if "%{snapshot}" != ""
+# GitLab snapshot has no catalogs; ship the TP snapshot (ABF has no network)
 tar -xf %{SOURCE16} --strip-components=1 -C po
 {
 	ls po/*.po | xargs -L 100 basename -s .po -a
 	echo en@quot en@hebrew de@hebrew en@cyrillic en@greek en@arabic en@piglatin de_CH
 } | tr ' ' '\n' | sort -u | xargs > po/LINGUAS
+%endif
 
 #-----------------------------------------------------------------------
 %build
@@ -293,7 +308,20 @@ _grub_host_freetype_libs="$(PKG_CONFIG_SYSROOT_DIR= PKG_CONFIG_LIBDIR=%{_libdir}
 #(proyvind): debugedit will fail on some binaries if linked using gold
 # https://savannah.gnu.org/bugs/?34539
 # https://sourceware.org/bugzilla/show_bug.cgi?id=14187
+%if "%{snapshot}" == ""
+# The release tarball already imported gnulib, libgcrypt and libtasn1.
+# autogen.sh applies those patches again and aborts. Keep the makefile
+# generation and autoconf run; skip the imports.
+awk '
+  /^echo "Importing unicode/ {skip=1}
+  /^echo "Generating Automake input/ {skip=0}
+  !skip {print}
+' autogen.sh > autogen.dist.sh
+bash autogen.dist.sh
+rm -f autogen.dist.sh
+%else
 ./autogen.sh
+%endif
 
 %if "%{platform}" != ""
 mkdir -p %{platform}
